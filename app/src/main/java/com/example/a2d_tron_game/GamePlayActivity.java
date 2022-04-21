@@ -21,7 +21,7 @@ import android.widget.Toast;
 
 import io.github.controlwear.virtual.joystick.android.JoystickView;
 
-public class MainActivity extends AppCompatActivity {
+public class GamePlayActivity extends AppCompatActivity {
 
     private final int GAME_BOARD_SIZE = 70;
     private int gameBoard[][] = new int[GAME_BOARD_SIZE][GAME_BOARD_SIZE];
@@ -270,7 +270,7 @@ public class MainActivity extends AppCompatActivity {
         } else {
             speed = 1;
         }
-        System.out.println("SPeed in boostSpeed " + speed);
+        System.out.println("Speed in boostSpeed " + speed);
     }
 
     class JoyStickThread implements Runnable {
@@ -320,7 +320,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
 
-
         }
     }
 
@@ -365,11 +364,29 @@ public class MainActivity extends AppCompatActivity {
         String turnDirection = ""; // Determine how the car will turn (ex: "leftToUp")
         String previousTurnDirection = ""; // We need this to know when to draw the corners of the tail since the tail follow the head, it needs to know what the head previous did.
 
-
-        boolean handlerRunning = false; // Determine if the Handler is still updating the UI.
+        public void displayYouLoseToast()
+        {
+            Handler threadHandler = new Handler(Looper.getMainLooper());
+            threadHandler.post(new Runnable() {
+                @Override
+                public void run() { //This thread need sometime to update the UI screen.
+                    deletePlayer();
+                    Toast.makeText(getApplicationContext(), "You lose",
+                            Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
 
         @Override
         public void run() {
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException e) {
+
+            }
+            boolean youLose = false; //indicate whether the player lose or not.
+            // This is used for when the speed is 2 (i.e. when the player skip a cell as they move, and there is obstacle in that cell, then youLose will set to true).
+
             while (true) {
 //                while (handlerRunning) {
 //                    //Do nothing here. We want to ensure all the changes are made to the UI before we continue making a new move.
@@ -410,7 +427,18 @@ public class MainActivity extends AppCompatActivity {
                             row -= tempSpeed;
                             //secondHalfOfViewID will increase/decrease an additional unit if the speed is 2.
                             if (tempSpeed == 2) {
-                                gameBoard[row+1][column] = 10;
+
+                                // when the speed is 2, the player's head skips a cell in gameBoard.
+                                // If there is something in that skipped cell, then the play dies.
+                                // This prevents the player from running through walls and other players without dying.
+                                if (gameBoard[row+1][column] == 0)
+                                {
+                                    gameBoard[row+1][column] = 10;
+                                }
+                                else
+                                {
+                                    youLose = true;
+                                }
                                 secondHalfOfHalfViewID -= 100;
                             }
                             //speed = tempSpeed;
@@ -440,7 +468,15 @@ public class MainActivity extends AppCompatActivity {
 
                             //secondHalfOfViewID will increase/decrease an additional unit if the speed is 2.
                             if (tempSpeed == 2) {
-                                gameBoard[row-1][column] = 10;
+                                if (gameBoard[row-1][column] == 0)
+                                {
+                                    gameBoard[row-1][column] = 10;
+                                }
+                                else
+                                {
+                                    youLose = true;
+                                }
+
                                 secondHalfOfHalfViewID += 100;
                             }
                             //speed = tempSpeed;
@@ -457,7 +493,7 @@ public class MainActivity extends AppCompatActivity {
                             } else if (secondHalfOfHeadDrawable == headDown2) {
                                 turnDirection = "downToLeft";
                                 lastTailDrawable = verticalTail;
-                                speed = 1;
+                                tempSpeed = 1;
                             } else { // Player not turning
                                 lastTailDrawable = horizontalTail;
                                 turnDirection = "";
@@ -468,10 +504,18 @@ public class MainActivity extends AppCompatActivity {
 
                             //secondHalfOfViewID will increase/decrease an additional unit if the speed is 2.
                             if (tempSpeed == 2) {
-                                gameBoard[row][column+1] = 10;
+                                if(gameBoard[row][column+1] == 0)
+                                {
+                                    gameBoard[row][column+1] = 10;
+                                }
+                                else
+                                {
+                                    youLose = true;
+                                }
+
                                 secondHalfOfHalfViewID -= 1;
                             }
-                            speed = tempSpeed;
+                            //speed = tempSpeed;
                         }
                         break;
 
@@ -498,7 +542,14 @@ public class MainActivity extends AppCompatActivity {
 
                             //secondHalfOfViewID will increase/decrease an additional unit if the speed is 2.
                             if (tempSpeed == 2) {
-                                gameBoard[row][column-1] = 10;
+                                if (gameBoard[row][column-1] == 0)
+                                {
+                                    gameBoard[row][column-1] = 10;
+                                }
+                                else
+                                {
+                                    youLose = true;
+                                }
                                 secondHalfOfHalfViewID += 1;
                             }
                             //speed = tempSpeed;
@@ -532,21 +583,15 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
 
-                // Fill in the gameBoard
+                // Check if the player lose or not
 
-                if (gameBoard[row][column] != 0 || row >= GAME_BOARD_SIZE || column >= GAME_BOARD_SIZE || row < 0 || column < 0)
+                if (youLose || gameBoard[row][column] != 0 || row >= GAME_BOARD_SIZE || column >= GAME_BOARD_SIZE || row < 0 || column < 0)
                 {
-                    Handler threadHandler = new Handler(Looper.getMainLooper());
-                    threadHandler.post(new Runnable() {
-                        @Override
-                        public void run() { //This thread need sometime to update the UI screen.
-                            deletePlayer();
-                            Toast.makeText(getApplicationContext(), "You lose",
-                                    Toast.LENGTH_LONG).show();
-                        }
-                    });
+                    displayYouLoseToast();
+                    System.out.println(youLose);
                     break;
                 }
+
                 //gameBoard[row][column] = 10;
 
 

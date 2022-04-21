@@ -10,7 +10,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.2d_tron_game">
 
-        <activity android:name=".MainActivity"
+        <activity android:name=".GamePlayActivity"
             android:screenOrientation="userLandscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
