@@ -11,6 +11,7 @@ public class Player {
 
     Context context;
     String playerDirection;
+    String previousPlayerDirection;
     // Drawables for the head of the player.
     Drawable headUp1;
     Drawable headUp2;
@@ -72,8 +73,6 @@ public class Player {
 
 
         //Set the Drawable for the player.
-        this.playerDirection = playerDirection;
-        System.out.println(getResId(headUp1Name));
         this.headUp1 = context.getDrawable(getResId(headUp1Name));
         this.headUp2 = context.getDrawable(getResId(headUp2Name));
         this.headDown1 = context.getDrawable(getResId(headDown1Name));
@@ -97,6 +96,10 @@ public class Player {
         this.previousFirstHalfOfHeadViewID = firstHalfOfHeadViewID;
         this.secondHalfOfHalfViewID = previousFirstHalfOfHeadViewID;
         this.lastTailViewID = secondHalfOfHalfViewID;
+
+        //Set the initial direction for player
+        this.playerDirection = playerDirection;
+        this.previousPlayerDirection = this.playerDirection;
         System.out.println("finished initialize player");
     }
 

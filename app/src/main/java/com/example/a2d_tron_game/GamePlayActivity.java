@@ -24,6 +24,13 @@ import java.util.ArrayList;
 
 import io.github.controlwear.virtual.joystick.android.JoystickView;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.*;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+
 public class GamePlayActivity extends AppCompatActivity {
 
 
@@ -32,7 +39,6 @@ public class GamePlayActivity extends AppCompatActivity {
     private int gameBoard[][] = new int[GAME_BOARD_SIZE][GAME_BOARD_SIZE];
     private Handler mainHandler = new Handler();
     private volatile String playerDirection = "up";
-    private volatile String playerPreviousDirection = playerDirection;
     private volatile int speed = 1; // speed of car.
 
     /*
@@ -99,9 +105,11 @@ public class GamePlayActivity extends AppCompatActivity {
 
         //Initialize the Game UI Board
         createUIGameBoard();
+
         JoyStickThread joyStickThread = new JoyStickThread();
         new Thread(joyStickThread).start();
 
+        //Start MovePlayer on background thread
         MovePlayer movePlayer = new MovePlayer();
         new Thread(movePlayer).start();
 
@@ -278,12 +286,13 @@ public class GamePlayActivity extends AppCompatActivity {
 
         @Override
         public void run() {
+
             //Creating virtual joystick as the controller of the game.
             JoystickView joystick = (JoystickView) findViewById(R.id.joystickView);
             joystick.setOnMoveListener(new JoystickView.OnMoveListener() {
                 @Override
                 public void onMove(int angle, int strength) {
-                    playerPreviousDirection = playerDirection;
+
                     // do whatever you want
                     if (strength >= 70) {
                         if (angle >= 45 && angle <= 135) //90 - 45 and 90 + 45
@@ -329,13 +338,22 @@ public class GamePlayActivity extends AppCompatActivity {
 
         //Player player1 = new Player("player1", "up", firstHalfOfHeadViewID, gameActivityContext);
         ArrayList<Player> players = new ArrayList<Player>();
+        int myPlayerNumber = 1;
+        JSONObject myPlayerMove;
+        JSONObject allPlayersMoves;
+        final int HEADERSIZE = 10;
+        Socket socket;
+        DataOutputStream sendMessageToServer;
+
         boolean youLose = false; //indicate whether the player lose or not.
 
-        MovePlayer()
-        {
+        MovePlayer() {
             players.add(new Player("player1", "up", firstHalfOfHeadViewID, gameActivityContext));
-            System.out.println("Move player initilized");
+
+            myPlayerMove = new JSONObject();
+            allPlayersMoves = new JSONObject();
         }
+
 
         public void displayYouLoseToast() {
             Handler threadHandler = new Handler(Looper.getMainLooper());
@@ -353,21 +371,166 @@ public class GamePlayActivity extends AppCompatActivity {
         @Override
         public void run() {
 
+            //Socket s=new Socket("35.247.71.135",5000);
+
+
             try {
                 Thread.sleep(3000);
             } catch (InterruptedException e) {
 
             }
 
-            // This is used for when the speed is 2 (i.e. when the player skip a cell as they move, and there is obstacle in that cell, then youLose will set to true).
 
+            // initialize socket
+            try {
+                socket = new Socket("192.168.1.126", 1234);
+                System.out.println("socket connectedfsocket");
+                sendMessageToServer = new DataOutputStream(socket.getOutputStream());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+
+            String currentDirection;
+            int currentSpeed;
             while (!youLose) {
-                updatePlayerMove(0, playerDirection);
+                currentDirection = playerDirection;
+                currentSpeed = speed; //currentSpeed decrease to 1 when turning
+//                //TODO: send your move to game server
+                try {
+
+                    String stringID = String.valueOf(players.get(0).firstHalfOfHeadViewID);
+                    String stringColumn = stringID.substring(3, 5);
+                    String stringRow = stringID.substring(1, 3);
+                    int row = Integer.parseInt(stringRow);
+                    int column = Integer.parseInt(stringColumn);
+
+                    String position;
+                    switch (currentDirection) {
+                        case "up":
+                            switch (players.get(0).previousPlayerDirection) {
+                                case "down":
+                                case "up":
+                                    row--;
+                                    position = "(" + row + "," + column + ")+";
+                                    if (currentSpeed == 2) {
+                                        row--;
+                                        position = position + "(" + row + "," + column + ")";
+                                    }
+
+                                    myPlayerMove.put("position", position);
+                                    break;
+                                case "left":
+                                case "right":
+                                    currentSpeed = 1;
+                                    row--;
+                                    position = "(" + row + "," + column + ")+";
+                                    myPlayerMove.put("position", position);
+                                    break;
+
+                            }
+                            break;
+                        case "down":
+                            switch (players.get(0).previousPlayerDirection) {
+                                case "down":
+                                case "up":
+                                    row++;
+                                    position = "(" + row + "," + column + ")+";
+                                    if (currentSpeed == 2) {
+                                        row++;
+                                        position = position + "(" + row + "," + column + ")";
+                                    }
+
+                                    myPlayerMove.put("position", position);
+                                    break;
+                                case "left":
+                                case "right":
+                                    currentSpeed = 1;
+                                    row++;
+                                    position = "(" + row + "," + column + ")+";
+                                    myPlayerMove.put("position", position);
+                                    break;
+
+                            }
+                            break;
+
+                        case "left":
+                            switch (players.get(0).previousPlayerDirection) {
+                                case "left":
+                                case "right":
+                                    column--;
+                                    position = "(" + row + "," + column + ")+";
+                                    if (currentSpeed == 2) {
+                                        column++;
+                                        position = position + "(" + row + "," + column + ")";
+                                    }
+
+                                    myPlayerMove.put("position", position);
+                                    break;
+                                case "up":
+                                case "down":
+                                    currentSpeed = 1;
+                                    column--;
+                                    position = "(" + row + "," + column + ")+";
+                                    myPlayerMove.put("position", position);
+                                    break;
+
+                            }
+                            break;
+                        case "right":
+                            switch (players.get(0).previousPlayerDirection) {
+                                case "left":
+                                case "right":
+                                    column++;
+                                    position = "(" + row + "," + column + ")+";
+                                    if (currentSpeed == 2) {
+                                        column++;
+                                        position = position + "(" + row + "," + column + ")";
+                                    }
+
+                                    myPlayerMove.put("position", position);
+                                    break;
+                                case "up":
+                                case "down":
+                                    currentSpeed = 1;
+                                    column++;
+                                    position = "(" + row + "," + column + ")+";
+                                    myPlayerMove.put("position", position);
+                                    break;
+                            }
+                            break;
+                    }
+
+
+                    myPlayerMove.put("playerNumber", myPlayerNumber);
+                    myPlayerMove.put("speed", currentSpeed);
+                    myPlayerMove.put("direction", currentDirection);
+                    System.out.println("playerDirection " + playerDirection);
+                    System.out.println("currentDirection " + currentDirection);
+//
+//
+                    String myPlayerMoveString = myPlayerMove.toString();
+                    String headerFormat = "%-" + HEADERSIZE + "s";
+                    String header = String.format(headerFormat, myPlayerMoveString.length());
+                    myPlayerMoveString = header + myPlayerMoveString;
+                    //System.out.println("playerDirection " + playerDirection);
+                    sendMessageToServer.write(myPlayerMoveString.getBytes());
+                    sendMessageToServer.flush();
+
+                } catch (JSONException |IOException e) {
+                    e.printStackTrace();
+                }
+
+                //TODO: send myPlayerMove to game server.
+
+                //TODO: receive move from all players to game server
+                updatePlayerMove(0, currentDirection, currentSpeed);
             } // end while
+            displayYouLoseToast();
         }
 
 
-        public void updatePlayerMove(int playerNumber, String direction) {
+        public void updatePlayerMove(int playerNumber, String direction, int currentSpeed) {
             players.get(playerNumber).previousTurnDirection = players.get(playerNumber).turnDirection; // This help us know how our car turned so we know to update the UI appropriately (i.e. taking care of corners of tail).
             players.get(playerNumber).secondHalfOfHalfViewID = players.get(playerNumber).previousFirstHalfOfHeadViewID;
 
@@ -385,9 +548,9 @@ public class GamePlayActivity extends AppCompatActivity {
             players.get(playerNumber).playerDirection = direction;
             switch (players.get(playerNumber).playerDirection) {
                 case "up":
-                    if (row > speed - 1) {
+                    if (row > currentSpeed - 1) {
                         //when we turn, we want to make the speed equal to 1
-                        int tempSpeed = speed;
+                        int tempSpeed = currentSpeed;
                         if (players.get(playerNumber).secondHalfOfHeadDrawable == players.get(playerNumber).headLeft2) { //We are turning
                             players.get(playerNumber).turnDirection = "leftToUp";
                             players.get(playerNumber).lastTailDrawable = players.get(playerNumber).horizontalTail;
@@ -420,8 +583,8 @@ public class GamePlayActivity extends AppCompatActivity {
                     }
                     break;
                 case "down":
-                    if (row < GAME_BOARD_SIZE - speed) {
-                        int tempSpeed = speed;
+                    if (row < GAME_BOARD_SIZE - currentSpeed) {
+                        int tempSpeed = currentSpeed;
                         if (players.get(playerNumber).secondHalfOfHeadDrawable == players.get(playerNumber).headLeft2) {
 
                             players.get(playerNumber).turnDirection = "leftToDown";
@@ -455,8 +618,8 @@ public class GamePlayActivity extends AppCompatActivity {
                     }
                     break;
                 case "left":
-                    if (column > (speed - 1)) {
-                        int tempSpeed = speed;
+                    if (column > (currentSpeed - 1)) {
+                        int tempSpeed = currentSpeed;
                         if (players.get(playerNumber).secondHalfOfHeadDrawable == players.get(playerNumber).headUp2) {
                             players.get(playerNumber).turnDirection = "upToLeft";
                             players.get(playerNumber).lastTailDrawable = players.get(playerNumber).verticalTail;
@@ -489,8 +652,8 @@ public class GamePlayActivity extends AppCompatActivity {
                     break;
 
                 case "right":
-                    if (column < GAME_BOARD_SIZE - speed) {
-                        int tempSpeed = speed;
+                    if (column < GAME_BOARD_SIZE - currentSpeed) {
+                        int tempSpeed = currentSpeed;
                         if (players.get(playerNumber).secondHalfOfHeadDrawable == players.get(playerNumber).headUp2) {
                             players.get(playerNumber).turnDirection = "upToRight";
                             players.get(playerNumber).lastTailDrawable = players.get(playerNumber).verticalTail;
@@ -552,7 +715,6 @@ public class GamePlayActivity extends AppCompatActivity {
             // Check if the player lose or not
 
             if (youLose || gameBoard[row][column] != 0 || row >= GAME_BOARD_SIZE || column >= GAME_BOARD_SIZE || row < 0 || column < 0) {
-                displayYouLoseToast();
                 System.out.println(youLose);
                 youLose = true;
                 return;
@@ -574,6 +736,7 @@ public class GamePlayActivity extends AppCompatActivity {
             }
             stringID = "1" + stringRow + stringColumn;
             players.get(playerNumber).firstHalfOfHeadViewID = Integer.parseInt(stringID);
+
 
             // Prepare views to update animation on UI.
             ImageView imageView = (ImageView) findViewById(players.get(playerNumber).firstHalfOfHeadViewID);
@@ -615,6 +778,7 @@ public class GamePlayActivity extends AppCompatActivity {
             }
             players.get(playerNumber).lastTailViewID = players.get(playerNumber).secondHalfOfHalfViewID; //We want to know where the second half of the head was so we can update the tail appropriately next time.
             players.get(playerNumber).previousFirstHalfOfHeadViewID = players.get(playerNumber).firstHalfOfHeadViewID; // We need this to take care of when the speed is 2.
+            players.get(playerNumber).previousPlayerDirection = players.get(playerNumber).playerDirection;
         }
     }
 
