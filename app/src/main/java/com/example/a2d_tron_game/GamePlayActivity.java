@@ -32,8 +32,6 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
 public class GamePlayActivity extends AppCompatActivity {
-
-
     private Context gameActivityContext; // this allow non-activity class to access resources
     private final int GAME_BOARD_SIZE = 70;
     private int gameBoard[][] = new int[GAME_BOARD_SIZE][GAME_BOARD_SIZE];
@@ -345,6 +343,9 @@ public class GamePlayActivity extends AppCompatActivity {
         Socket socket;
         DataOutputStream sendMessageToServer;
 
+
+        byte[] message = new byte[100];
+
         boolean youLose = false; //indicate whether the player lose or not.
 
         MovePlayer() {
@@ -383,22 +384,25 @@ public class GamePlayActivity extends AppCompatActivity {
 
             // initialize socket
             try {
-                socket = new Socket("192.168.1.126", 1234);
+                socket = new Socket("35.247.71.135", 5000);
+                socket.setTcpNoDelay(true);
                 System.out.println("socket connectedfsocket");
                 sendMessageToServer = new DataOutputStream(socket.getOutputStream());
+                //dis = new DataInputStream(socket.getInputStream());
+
             } catch (IOException e) {
                 e.printStackTrace();
             }
 
-
             String currentDirection;
+            long startTime = 0;
+            long endTime = 0;
             int currentSpeed;
             while (!youLose) {
                 currentDirection = playerDirection;
                 currentSpeed = speed; //currentSpeed decrease to 1 when turning
 //                //TODO: send your move to game server
                 try {
-
                     String stringID = String.valueOf(players.get(0).firstHalfOfHeadViewID);
                     String stringColumn = stringID.substring(3, 5);
                     String stringRow = stringID.substring(1, 3);
@@ -412,10 +416,10 @@ public class GamePlayActivity extends AppCompatActivity {
                                 case "down":
                                 case "up":
                                     row--;
-                                    position = "(" + row + "," + column + ")+";
+                                    position = "(" + row + "," + column + ")";
                                     if (currentSpeed == 2) {
                                         row--;
-                                        position = position + "(" + row + "," + column + ")";
+                                        position = position + "+(" + row + "," + column + ")";
                                     }
 
                                     myPlayerMove.put("position", position);
@@ -424,7 +428,7 @@ public class GamePlayActivity extends AppCompatActivity {
                                 case "right":
                                     currentSpeed = 1;
                                     row--;
-                                    position = "(" + row + "," + column + ")+";
+                                    position = "(" + row + "," + column + ")";
                                     myPlayerMove.put("position", position);
                                     break;
 
@@ -435,10 +439,10 @@ public class GamePlayActivity extends AppCompatActivity {
                                 case "down":
                                 case "up":
                                     row++;
-                                    position = "(" + row + "," + column + ")+";
+                                    position = "(" + row + "," + column + ")";
                                     if (currentSpeed == 2) {
                                         row++;
-                                        position = position + "(" + row + "," + column + ")";
+                                        position = position + "+(" + row + "," + column + ")";
                                     }
 
                                     myPlayerMove.put("position", position);
@@ -447,10 +451,9 @@ public class GamePlayActivity extends AppCompatActivity {
                                 case "right":
                                     currentSpeed = 1;
                                     row++;
-                                    position = "(" + row + "," + column + ")+";
+                                    position = "(" + row + "," + column + ")";
                                     myPlayerMove.put("position", position);
                                     break;
-
                             }
                             break;
 
@@ -459,10 +462,10 @@ public class GamePlayActivity extends AppCompatActivity {
                                 case "left":
                                 case "right":
                                     column--;
-                                    position = "(" + row + "," + column + ")+";
+                                    position = "(" + row + "," + column + ")";
                                     if (currentSpeed == 2) {
-                                        column++;
-                                        position = position + "(" + row + "," + column + ")";
+                                        column--;
+                                        position = position + "+(" + row + "," + column + ")";
                                     }
 
                                     myPlayerMove.put("position", position);
@@ -471,7 +474,7 @@ public class GamePlayActivity extends AppCompatActivity {
                                 case "down":
                                     currentSpeed = 1;
                                     column--;
-                                    position = "(" + row + "," + column + ")+";
+                                    position = "(" + row + "," + column + ")";
                                     myPlayerMove.put("position", position);
                                     break;
 
@@ -482,10 +485,10 @@ public class GamePlayActivity extends AppCompatActivity {
                                 case "left":
                                 case "right":
                                     column++;
-                                    position = "(" + row + "," + column + ")+";
+                                    position = "(" + row + "," + column + ")";
                                     if (currentSpeed == 2) {
                                         column++;
-                                        position = position + "(" + row + "," + column + ")";
+                                        position = position + "+(" + row + "," + column + ")";
                                     }
 
                                     myPlayerMove.put("position", position);
@@ -494,7 +497,7 @@ public class GamePlayActivity extends AppCompatActivity {
                                 case "down":
                                     currentSpeed = 1;
                                     column++;
-                                    position = "(" + row + "," + column + ")+";
+                                    position = "(" + row + "," + column + ")";
                                     myPlayerMove.put("position", position);
                                     break;
                             }
@@ -505,8 +508,6 @@ public class GamePlayActivity extends AppCompatActivity {
                     myPlayerMove.put("playerNumber", myPlayerNumber);
                     myPlayerMove.put("speed", currentSpeed);
                     myPlayerMove.put("direction", currentDirection);
-                    System.out.println("playerDirection " + playerDirection);
-                    System.out.println("currentDirection " + currentDirection);
 //
 //
                     String myPlayerMoveString = myPlayerMove.toString();
@@ -517,20 +518,47 @@ public class GamePlayActivity extends AppCompatActivity {
                     sendMessageToServer.write(myPlayerMoveString.getBytes());
                     sendMessageToServer.flush();
 
-                } catch (JSONException |IOException e) {
+
+                    //TODO: Make receive message faster
+                    startTime = System.currentTimeMillis();
+                    receiveServerMessage();
+                    //receiveServerMessage();
+//                    int receiveMessageSize = Integer.parseInt(new String(message, StandardCharsets.UTF_8).trim());
+//                    message = new byte[receiveMessageSize];
+//                    dis.read(message);
+//                    System.out.println(message.toString());
+                    endTime = System.currentTimeMillis();
+                    //System.out.println("receive time " + (endTime - startTime));
+
+                } catch (JSONException | IOException e) {
                     e.printStackTrace();
                 }
 
                 //TODO: send myPlayerMove to game server.
 
                 //TODO: receive move from all players to game server
-                updatePlayerMove(0, currentDirection, currentSpeed);
+
+                //TODO: when speed is 2, we move 2 cells. If the 2nd cell is an obstacle, set the speed to 1 to display the car properly.
+//
+                int latencyTime = (int) (endTime - startTime);
+                if (youLose) {
+                    if (currentSpeed == 2) {
+                        currentSpeed = 1;
+                        updatePlayerMove(0, currentDirection, currentSpeed, latencyTime);
+                    }
+                    break;
+                }
+
+                updatePlayerMove(0, currentDirection, currentSpeed, latencyTime);
+
             } // end while
             displayYouLoseToast();
         }
 
 
-        public void updatePlayerMove(int playerNumber, String direction, int currentSpeed) {
+        public void updatePlayerMove(int playerNumber, String direction, int currentSpeed, int latencyTime) {
+            long startTime = System.currentTimeMillis();
+
             players.get(playerNumber).previousTurnDirection = players.get(playerNumber).turnDirection; // This help us know how our car turned so we know to update the UI appropriately (i.e. taking care of corners of tail).
             players.get(playerNumber).secondHalfOfHalfViewID = players.get(playerNumber).previousFirstHalfOfHeadViewID;
 
@@ -715,7 +743,7 @@ public class GamePlayActivity extends AppCompatActivity {
             // Check if the player lose or not
 
             if (youLose || gameBoard[row][column] != 0 || row >= GAME_BOARD_SIZE || column >= GAME_BOARD_SIZE || row < 0 || column < 0) {
-                System.out.println(youLose);
+                //System.out.println(youLose);
                 youLose = true;
                 return;
             }
@@ -770,15 +798,61 @@ public class GamePlayActivity extends AppCompatActivity {
                 }
             });
 
-            System.out.println(players.get(playerNumber).turnDirection);
+            long endTime = System.currentTimeMillis();
+            latencyTime += (endTime - startTime);
             try {
-                Thread.sleep(100);
+                if (latencyTime < 100) {
+                    Thread.sleep(100 - latencyTime);
+                }
+
             } catch (InterruptedException e) {
 
             }
             players.get(playerNumber).lastTailViewID = players.get(playerNumber).secondHalfOfHalfViewID; //We want to know where the second half of the head was so we can update the tail appropriately next time.
             players.get(playerNumber).previousFirstHalfOfHeadViewID = players.get(playerNumber).firstHalfOfHeadViewID; // We need this to take care of when the speed is 2.
             players.get(playerNumber).previousPlayerDirection = players.get(playerNumber).playerDirection;
+        }
+
+        public String receiveServerMessage() throws IOException {
+            DataInputStream dis = new DataInputStream(socket.getInputStream());
+            byte[] message;
+            StringBuilder serverHeader = new StringBuilder();
+            ByteArrayOutputStream fullMessage = new ByteArrayOutputStream();
+
+            int receiveMessageSize = HEADERSIZE;
+            boolean newMessage = true;
+
+            int serverMessageSize = 0;
+
+            long startTime = System.currentTimeMillis();
+            while (true) {
+                message = new byte[receiveMessageSize];
+                dis.read(message, 0, receiveMessageSize);
+                if (newMessage) {
+                    serverHeader.append(new String(message, StandardCharsets.UTF_8));
+                    if (serverHeader.length() < HEADERSIZE) //Make sure we receive the full header.
+                    {
+                        receiveMessageSize = HEADERSIZE - serverHeader.length();
+                    } else {
+                        serverMessageSize = Integer.parseInt(serverHeader.toString().trim()); //trim() remove empty spaces
+                        newMessage = false;
+                        receiveMessageSize = 0;
+                    }
+
+                } else {
+                    fullMessage.write(message);
+                    receiveMessageSize = serverMessageSize - fullMessage.size();
+                    if (fullMessage.size() == serverMessageSize) {
+                        // newMessage = true;
+                        //serverHeader = new StringBuilder();
+                        break;
+                    }
+                }
+
+            }
+            long endTime = System.currentTimeMillis();
+            //System.out.println("receive message time " + (endTime - startTime));
+            return fullMessage.toString();
         }
     }
 
