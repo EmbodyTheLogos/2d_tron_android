@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">2d_tron_game</string>
+    <string name="lobby_title"><b>Game Room ID</b></string>
 </resources>

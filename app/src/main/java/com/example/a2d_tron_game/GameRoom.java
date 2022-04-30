@@ -6,17 +6,15 @@ import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
 @Entity
-public class Player {
+public class GameRoom {
 
     @PrimaryKey
     @NonNull
-    public String playerID;
+    public String gameRoomID;
 
-    @ColumnInfo(name = "player_name")
-    public String playerName;
+    @ColumnInfo(name = "game_room_ip")
+    public String gameRoomIP;
 
-    @ColumnInfo(name = "is_local")
-    public boolean isLocal;
-
-
+    @ColumnInfo(name = "game_room_port")
+    public int gameRoomPort;
 }
