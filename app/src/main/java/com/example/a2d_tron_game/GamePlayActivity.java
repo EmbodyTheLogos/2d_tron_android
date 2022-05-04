@@ -200,6 +200,8 @@ public class GamePlayActivity extends AppCompatActivity {
         }
     }
 
+    // Everything below here is unneccesary, but I afraid it might caused bug so I want to wait and delete them later.
+
 
     // Call this method every time the activity is created.
     // This will Programmatically creates Views to construct the UI game board.
@@ -1090,29 +1092,5 @@ public class GamePlayActivity extends AppCompatActivity {
             return fullMessage.toString();
         }
     }
-
-    //TODO: On Friday, create a virtual joystick. Create images for the heads. Create images for the tails.
-
-    //TODO: On Saturday, handle multitouch events. Add a "Boost" button that allow player to move two blocks.
-
-    //TODO: On Sunday, create GraphicPlayer class. Move a player automatically, and control that player's direction with the joystick.
-
-    //TODO: On Monday, add multiple graphicPlayers and allow them to move automatically. Figure out the int values (i.e. player's heads and tails) for each player in the board[][]
-
-    //TODO: On Tuesday, create socket and connect to the server using background thread. Figure out how to handle communication.
-
-    //TODO: On Wednesday, make "Create Game"/"Join Game" Activity that interact with the server.
-
-    //TODO: On Thursday, create "Lobby" activity with "Start" and "Leave" buttons. Receive game information from server (number of graphicPlayers, who is the host, graphicPlayers' information).
-
-    //TODO: On Saturday, create Room Database to store game information received from server (i.e. player's name and player's position).
-
-    //TODO: On Sunday, handle game communication between server and clients in the same room. Synchronize start game of every player in the same room.
-
-    //TODO: On Monday, finalize the project. Check for all requirements Dr. Blum wants.
-
-    //TODO: On Tuesday, write the report and prepare presentation.
-
-    //TODO: On Wednesday, submit project and continue to prepare for presentation.
 }
 
