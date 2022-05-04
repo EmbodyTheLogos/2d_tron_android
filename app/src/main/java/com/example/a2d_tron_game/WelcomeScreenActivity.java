@@ -80,7 +80,7 @@ public class WelcomeScreenActivity extends AppCompatActivity {
                     try {
                         socket = new Socket();
                         //"35.247.71.135",5000
-                        socket.connect(new InetSocketAddress("66.71.31.184", 5000), 1000);
+                        socket.connect(new InetSocketAddress("192.168.1.126", 5000), 1000);
 
 
                         // Create JSONArray to receive message from game server
@@ -95,6 +95,7 @@ public class WelcomeScreenActivity extends AppCompatActivity {
                         editor.putString("gameRoomID", gameRoomID);
                         editor.putString("gameRoomIP", gameRoomIP);
                         editor.putInt("gameRoomPort", gameRoomPort);
+                        editor.putBoolean("playWithBot", false);
                         editor.commit();
 
 
@@ -164,6 +165,10 @@ public class WelcomeScreenActivity extends AppCompatActivity {
     }
     public void playWithBotButtonClicked(View view)
     {
+        SharedPreferences.Editor editor = gameRoomInfo.edit();
+        editor.putBoolean("playWithBot", true);
+        editor.commit();
+
         //Go to the local game
         Intent gamePlayActivity = new Intent(WelcomeScreenActivity.this, GamePlayActivity.class);
         WelcomeScreenActivity.this.startActivity(gamePlayActivity);

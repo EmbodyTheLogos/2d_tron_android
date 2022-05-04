@@ -105,6 +105,7 @@ public class GameLobbyActivity extends AppCompatActivity {
 
     public void leaveGameButtonClicked(View view) {
         leaveGameRoom();
+        finish();
     }
 
     public void startGameButtonClicked(View view)
@@ -117,7 +118,8 @@ public class GameLobbyActivity extends AppCompatActivity {
                 String header = String.format(headerFormat, message.getBytes().length);
                 try {
                     socket.getOutputStream().write((header + message).getBytes());
-                    displayToast("started game");
+                    Intent gamePlayActivity = new Intent(GameLobbyActivity.this, GamePlayActivity.class);
+                    GameLobbyActivity.this.startActivity(gamePlayActivity);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -169,6 +171,7 @@ public class GameLobbyActivity extends AppCompatActivity {
                     displayAllPlayers(allPlayersNames);
 
                     // delete all players with playerID != "localPlayer".
+                    // Do this to clear out players from last game
                     for (int i = 0; i < 4; i++)
                     {
                         String playerID = "player" + String.valueOf(i+1);
@@ -238,9 +241,9 @@ public class GameLobbyActivity extends AppCompatActivity {
                                 }
                             }
                         }
-                        else
-                        {
+                        else {
                             // tell the server's lobby to stop listening to this player
+                            System.out.println(updatedInfo);
                             String message = "start";
                             headerFormat = "%-" + HEADERSIZE + "s";
                             header = String.format(headerFormat, message.getBytes().length);
@@ -249,6 +252,9 @@ public class GameLobbyActivity extends AppCompatActivity {
                             // done with lobby
                             displayToast("Start game");
                             doneWithLobby = true;
+                            // start the game if you are non host
+                            Intent gamePlayActivity = new Intent(GameLobbyActivity.this, GamePlayActivity.class);
+                            GameLobbyActivity.this.startActivity(gamePlayActivity);
                         }
                     }
 
@@ -256,9 +262,6 @@ public class GameLobbyActivity extends AppCompatActivity {
                     e.printStackTrace();
                 }
 
-////                 start the game
-//                Intent gamePlayActivity = new Intent(GameLobbyActivity.this, GamePlayActivity.class);
-//                GameLobbyActivity.this.startActivity(gamePlayActivity);
             }
         };
         new Thread(joinGameRoomThread).start();

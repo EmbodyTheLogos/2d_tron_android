@@ -78,7 +78,7 @@ public class JoinGamePopUpWindows extends AppCompatActivity {
             public void run() {
                 try {
                     socket = new Socket();
-                    socket.connect(new InetSocketAddress("66.71.31.184", 5001), 1000);
+                    socket.connect(new InetSocketAddress("192.168.1.126", 5001), 1000);
 
                     // Create JSON object to send message
                     JSONObject json_message = new JSONObject();

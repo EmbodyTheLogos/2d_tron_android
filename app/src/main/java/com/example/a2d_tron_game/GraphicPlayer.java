@@ -51,6 +51,7 @@ public class GraphicPlayer {
     String turnDirection = ""; // Determine how the car will turn (ex: "leftToUp")
     String previousTurnDirection = ""; // We need this to know when to draw the corners of the tail since the tail follow the head, it needs to know what the head previous did.
 
+    boolean handlerRunning;
 
     public GraphicPlayer(String playerOrder, String playerDirection, int initialPositionID, Context context) {
         this.firstHalfOfHeadViewID = initialPositionID;
@@ -101,6 +102,8 @@ public class GraphicPlayer {
         this.playerDirection = playerDirection;
         this.previousPlayerDirection = this.playerDirection;
         System.out.println("finished initialize player");
+
+        handlerRunning = false;
     }
 
 

@@ -6,11 +6,14 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.room.Room;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
 import android.graphics.drawable.Drawable;
+import android.icu.text.TimeZoneFormat;
+import android.media.Image;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -21,6 +24,7 @@ import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.TableLayout;
 import android.widget.TableRow;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import java.net.InetSocketAddress;
@@ -30,6 +34,7 @@ import io.github.controlwear.virtual.joystick.android.JoystickView;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.w3c.dom.Text;
 
 import java.io.*;
 import java.net.Socket;
@@ -39,10 +44,11 @@ import java.util.List;
 public class GamePlayActivity extends AppCompatActivity {
     private Context gameActivityContext; // this allow non-activity class to access resources
     private final int GAME_BOARD_SIZE = 70;
-    private int gameBoard[][] = new int[GAME_BOARD_SIZE][GAME_BOARD_SIZE];
     private Handler mainHandler = new Handler();
     private volatile String playerDirection = "up";
     private volatile int speed = 1; // speed of car.
+
+    long playWithBotsStartTime = System.currentTimeMillis();
 
 
     SharedPreferences gameRoomInfo;
@@ -50,6 +56,9 @@ public class GamePlayActivity extends AppCompatActivity {
     String gameRoomIP;
     int gameRoomPort;
     volatile boolean gameOver = false;
+
+    MovePlayerTest movePlayer;
+    LocalGameServer localGameServer;
 
     /*
         Int values in board:
@@ -68,7 +77,7 @@ public class GamePlayActivity extends AppCompatActivity {
             41 - 48: Player4's info
      */
 
-    private boolean gameBoardInitialized = false;
+
     private int firstHalfOfHeadViewID = 11414;
     private int positionSize; // the pixel size of each position in the gameBoard.
 
@@ -84,16 +93,10 @@ public class GamePlayActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         gameActivityContext = getApplicationContext();
-        if (!gameBoardInitialized) {
-            initializeGameBoard();
-        }
+
         System.out.println("Oncreate called");
-        for (int i = 0; i < gameBoard.length; i++) {
-            for (int k = 0; k < gameBoard.length; k++) {
-                System.out.print(gameBoard[i][k] + " ");
-            }
-            System.out.println();
-        }
+
+
         // Hide Title Bar
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         this.getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
@@ -107,163 +110,189 @@ public class GamePlayActivity extends AppCompatActivity {
                 View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
 
         //Initialize the Game UI Board
-        createUIGameBoard();
+        //createUIGameBoard();
 
         gameRoomInfo = getSharedPreferences("gameRoomInfo", Context.MODE_PRIVATE);
         gameRoomID = gameRoomInfo.getString("gameRoomID", "");
         gameRoomIP = gameRoomInfo.getString("gameRoomIP", "");
         gameRoomPort = gameRoomInfo.getInt("gameRoomPort", 0);
 
-        JoyStickThread joyStickThread = new JoyStickThread();
-        new Thread(joyStickThread).start();
+
+        boolean playWithBot = gameRoomInfo.getBoolean("playWithBot", false);
+
+
+        if (playWithBot) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    // wait for previous socket to close
+
+
+//                    try {
+//                        Thread.sleep(3000);
+//                    } catch (InterruptedException e) {
+//                        e.printStackTrace();
+//                    }
+                    for (int time = 3; time > 0; time--) {
+                        Handler threadHandler = new Handler(Looper.getMainLooper());
+                        int finalTime = time;
+                        threadHandler.post(new Runnable() {
+                            @Override
+                            public void run() { //This thread need sometime to update the UI screen.
+                                TextView startTimer = (TextView) findViewById(R.id.start_timer);
+
+                                String text = String.valueOf(finalTime);
+                                System.out.println("time: " + text);
+                                startTimer.setText(text);
+                            }
+                        });
+
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }
+
+                    Handler threadHandler = new Handler(Looper.getMainLooper());
+                    threadHandler.post(new Runnable() {
+                        @Override
+                        public void run() { //This thread need sometime to update the UI screen.
+                            TextView startTimer = (TextView) findViewById(R.id.start_timer);
+                            startTimer.setText("");
+                        }
+                    });
+
+                    if (!gameOver) {
+                        //Start game server on a background thread
+                        localGameServer = new LocalGameServer();
+                        localGameServer.initializeGameBoard();
+                        localGameServer.run();
+
+                    }
+                }
+            }).start();
+        }
+
+
+
+
 
         //Start MovePlayer on background thread
-        MovePlayer movePlayer = new MovePlayer();
-        new Thread(movePlayer).start();
+        movePlayer = new MovePlayerTest(this, getApplicationContext(), playWithBot);
+        movePlayer.run();
+
+
+
     }
 
     @Override
     public void onBackPressed() {
-        finish();
+        long playWithBotsEndTime = System.currentTimeMillis();
+        if (playWithBotsEndTime - playWithBotsStartTime > 4000) {
+            if (movePlayer != null && localGameServer != null) {
+                movePlayer.gameOver = true;
+                localGameServer.gameOver = true;
+            }
+            gameOver = true;
+            System.out.println("game over " + movePlayer.gameOver);
+            finish();
+        }
     }
 
-//    public void setSpeedButtonLocation() {
-//        // Find the position of the "button" after the UI Game Board is created
-//        boostSpeedButton = (ImageView) findViewById(R.id.boost_speed);
-//        int[] location = new int[2];
-//        boostSpeedButton.getLocationOnScreen(location);
-//        for (int i = 0; i < location.length; i++) {
-//            System.out.println("Locations " + location[i]);
+
+    // Call this method every time the activity is created.
+    // This will Programmatically creates Views to construct the UI game board.
+//    public void createUIGameBoard() {
+//        //Scale the board according to screen dp and pixel.
+//        displayMetrics = getResources().getDisplayMetrics();
+//        pxHeight = displayMetrics.heightPixels;
+//        dpHeight = pxHeight / displayMetrics.density; //displayMetrics.density is how many pixels in a dp.
+//
+//
+//        //positionSize = (int) (displayMetrics.density * (dpHeight / GAME_BOARD_SIZE));
+//        positionSize = (int) pxHeight / GAME_BOARD_SIZE;
+//
+//        //System.out.println("positionSize" + positionSize);
+//        for (int i = 0; i < GAME_BOARD_SIZE; i++) {
+//            String row = String.valueOf(i);
+//            if (i < 10) {
+//                row = "0" + row;
+//            }
+//            /* Find Tablelayout defined in main.xml */
+//            TableLayout tl = (TableLayout) findViewById(R.id.table_layout);
+//            /* Create a new row to be added. */
+//            TableRow tr = new TableRow(this);
+//            tr.setLayoutParams(new TableRow.LayoutParams(TableRow.LayoutParams.FILL_PARENT, TableRow.LayoutParams.WRAP_CONTENT));
+//            /* Create a Button to be the row-content. */
+//
+//            for (int k = 0; k < GAME_BOARD_SIZE; k++) {
+//                ImageView b = new ImageView(this);
+//                if (gameBoardData.gameBoard[i][k] == 1) {
+//                    b.setImageResource(R.drawable.wall);
+//                } else {
+//                    b.setImageResource(R.drawable.block);
+//                }
+//
+//                //b.setLayoutParams(new TableRow.LayoutParams(10, TableRow.LayoutParams.WRAP_CONTENT));
+//                b.setLayoutParams(new TableRow.LayoutParams(positionSize, positionSize));
+//
+//                // ImageView id has this form: 1_row_column.
+//                // Example 1: id = 10104 means we are at row 1 and column 4.
+//                // Example 2: id = 12142 means we are at row 21 and column 42.
+//                String column = String.valueOf(k);
+//                if (k < 10) {
+//                    column = "0" + column;
+//                }
+//                String stringId = "1" + row + column;
+//                int id = Integer.parseInt(stringId);
+//                b.setId(id);
+//
+//                /* Add ImageView to row. */
+//                tr.addView(b);
+//            }
+//            tl.addView(tr, new TableLayout.LayoutParams(TableLayout.LayoutParams.FILL_PARENT, TableLayout.LayoutParams.WRAP_CONTENT));
 //        }
-//        boostSpeedButtonX = new int[]{location[0], (int) (boostSpeedButton.getLeft() + (100 * displayMetrics.density))};
-//        boostSpeedButtonY = new int[]{location[1], (int) (boostSpeedButton.getTop() + (200 * displayMetrics.density))};
 //    }
 
-    //Go through the board and set the int values associate with the player we want to delete to 0.
-    //After each update, we then update the ImageView that associates with the position of the updated value.
-//    public void deletePlayer(String player) {
 //
+//    public void deletePlayer(int playerCode) {
+//
+//        Handler threadHandler = new Handler(Looper.getMainLooper());
+//        threadHandler.post(new Runnable() {
+//            @Override
+//            public void run() { //This thread need sometime to update the UI screen.
+//                for (int row = 0; row < GAME_BOARD_SIZE; row++) {
+//                    String stringRow = String.valueOf(row);
+//                    if (row < 10) {
+//                        stringRow = "0" + row;
+//                    }
+//                    for (int column = 0; column < GAME_BOARD_SIZE; column++) {
+//                        if (gameBoardData.gameBoard[row][column] == playerCode) {
+//                            String stringColumn = String.valueOf(column);
+//                            if (column < 10) {
+//                                stringColumn = "0" + column;
+//                            }
+//                            String stringId = "1" + stringRow + stringColumn;
+//                            int id = Integer.parseInt(stringId);
+//                            ImageView imageView = (ImageView) findViewById(id);
+//                            imageView.setImageResource(R.drawable.block);
+//                            imageView.setLayoutParams(new TableRow.LayoutParams(positionSize, positionSize));
+//                            gameBoardData.gameBoard[row][column] = 1;
+//                        }
+//                    }
+//                }
+//            }
+//        });
 //    }
-//
-//    public void movePlayers() {
-//
+
+//    public void boostSpeed(View view) {
+//        if (speed == 1) {
+//            speed = 2;
+//        } else {
+//            speed = 1;
+//        }
 //    }
-
-    public void initializeGameBoard() {
-        for (int row = 0; row < GAME_BOARD_SIZE; row++) {
-            for (int column = 0; column < GAME_BOARD_SIZE; column++) {
-                if (row == 0 || column == 0 || row == GAME_BOARD_SIZE - 1 || column == GAME_BOARD_SIZE - 1) {
-                    // creating wall
-                    this.gameBoard[row][column] = 1;
-                } else {
-                    this.gameBoard[row][column] = 0;
-                }
-
-            }
-        }
-        this.gameBoardInitialized = true;
-    }
-
-    //    //This will make sure the game board persists throughout the entire game.
-//    //This method traverse through the board[][] array and update the view accordingly.
-//    public void restoreBoard()
-//    {
-//
-//    }
-//
-//    // Call this method every time the activity is created.
-//    // This will Programmatically creates Views to construct the UI game board.
-    public void createUIGameBoard() {
-        //Scale the board according to screen dp and pixel.
-        displayMetrics = getResources().getDisplayMetrics();
-        pxHeight = displayMetrics.heightPixels;
-        dpHeight = pxHeight / displayMetrics.density; //displayMetrics.density is how many pixels in a dp.
-
-
-        //positionSize = (int) (displayMetrics.density * (dpHeight / GAME_BOARD_SIZE));
-        positionSize = (int) pxHeight / GAME_BOARD_SIZE;
-
-        //System.out.println("positionSize" + positionSize);
-        for (int i = 0; i < GAME_BOARD_SIZE; i++) {
-            String row = String.valueOf(i);
-            if (i < 10) {
-                row = "0" + row;
-            }
-            /* Find Tablelayout defined in main.xml */
-            TableLayout tl = (TableLayout) findViewById(R.id.table_layout);
-            /* Create a new row to be added. */
-            TableRow tr = new TableRow(this);
-            tr.setLayoutParams(new TableRow.LayoutParams(TableRow.LayoutParams.FILL_PARENT, TableRow.LayoutParams.WRAP_CONTENT));
-            /* Create a Button to be the row-content. */
-
-            for (int k = 0; k < GAME_BOARD_SIZE; k++) {
-                ImageView b = new ImageView(this);
-                if (gameBoard[i][k] == 1) {
-                    b.setImageResource(R.drawable.wall);
-                } else {
-                    b.setImageResource(R.drawable.block);
-                }
-
-                //b.setLayoutParams(new TableRow.LayoutParams(10, TableRow.LayoutParams.WRAP_CONTENT));
-                b.setLayoutParams(new TableRow.LayoutParams(positionSize, positionSize));
-
-                // ImageView id has this form: 1_row_column.
-                // Example 1: id = 10104 means we are at row 1 and column 4.
-                // Example 2: id = 12142 means we are at row 21 and column 42.
-                String column = String.valueOf(k);
-                if (k < 10) {
-                    column = "0" + column;
-                }
-                String stringId = "1" + row + column;
-                int id = Integer.parseInt(stringId);
-                b.setId(id);
-
-                /* Add ImageView to row. */
-                tr.addView(b);
-            }
-            tl.addView(tr, new TableLayout.LayoutParams(TableLayout.LayoutParams.FILL_PARENT, TableLayout.LayoutParams.WRAP_CONTENT));
-        }
-    }
-
-
-    public void deletePlayer(int playerCode) {
-
-        Handler threadHandler = new Handler(Looper.getMainLooper());
-        threadHandler.post(new Runnable() {
-            @Override
-            public void run() { //This thread need sometime to update the UI screen.
-                for (int row = 0; row < GAME_BOARD_SIZE; row++) {
-                    String stringRow = String.valueOf(row);
-                    if (row < 10) {
-                        stringRow = "0" + row;
-                    }
-                    for (int column = 0; column < GAME_BOARD_SIZE; column++) {
-                        if (gameBoard[row][column] == playerCode) {
-                            String stringColumn = String.valueOf(column);
-                            if (column < 10) {
-                                stringColumn = "0" + column;
-                            }
-                            String stringId = "1" + stringRow + stringColumn;
-                            int id = Integer.parseInt(stringId);
-                            ImageView imageView = (ImageView) findViewById(id);
-                            imageView.setImageResource(R.drawable.block);
-                            imageView.setLayoutParams(new TableRow.LayoutParams(positionSize, positionSize));
-                            gameBoard[row][column] = 1;
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    public void boostSpeed(View view) {
-        if (speed == 1) {
-            speed = 2;
-        } else {
-            speed = 1;
-        }
-        System.out.println("Speed in boostSpeed " + speed);
-    }
 
     class JoyStickThread implements Runnable {
 
@@ -317,8 +346,9 @@ public class GamePlayActivity extends AppCompatActivity {
     }
 
     class MovePlayer implements Runnable {
-
-        Drawable block = getResources().getDrawable(R.drawable.block);// use this to check for conflict
+        GameBoard gameBoardData;
+        Activity activity;
+        Context context;
 
         //TODO: load players from room databas
 
@@ -336,9 +366,11 @@ public class GamePlayActivity extends AppCompatActivity {
 
         boolean youLose = false; //indicate whether the player lose or not.
 
-        MovePlayer() {
+        MovePlayer(Activity activity, Context context) {
             myPlayerMove = new JSONObject();
             allPlayersMoves = new JSONObject();
+            this.activity = activity;
+            this.context = context;
         }
 
 
@@ -347,7 +379,7 @@ public class GamePlayActivity extends AppCompatActivity {
             threadHandler.post(new Runnable() {
                 @Override
                 public void run() { //This thread need sometime to update the UI screen.
-                    Toast.makeText(getApplicationContext(), "You lose",
+                    Toast.makeText(context, "You lose",
                             Toast.LENGTH_SHORT).show();
                 }
             });
@@ -358,7 +390,7 @@ public class GamePlayActivity extends AppCompatActivity {
             threadHandler.post(new Runnable() {
                 @Override
                 public void run() { //This thread need sometime to update the UI screen.
-                    Toast.makeText(getApplicationContext(), toastMessage,
+                    Toast.makeText(context, toastMessage,
                             Toast.LENGTH_SHORT).show();
                 }
             });
@@ -418,11 +450,9 @@ public class GamePlayActivity extends AppCompatActivity {
             //Socket s=new Socket("35.247.71.135",5000);
 
 
-            try {
-                Thread.sleep(3000);
-            } catch (InterruptedException e) {
-
-            }
+            gameBoardData = new GameBoard();
+            gameBoardData.initializeGameBoard();
+            gameBoardData.createUIGameBoard(context, activity);
 
 
 //            boolean socketConnected = false;
@@ -444,6 +474,11 @@ public class GamePlayActivity extends AppCompatActivity {
 //                }
 //            }
 
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException e) {
+
+            }
 
             // initilize all players
             for (int i = 0; i < 4; i++) {
@@ -472,9 +507,6 @@ public class GamePlayActivity extends AppCompatActivity {
                 graphicPlayers.add(graphicPlayer);
             }
 
-
-            boolean youLose3 = false;
-            boolean youLose4 = false;
             new Thread(new Runnable() {
                 @Override
                 public void run() {
@@ -508,17 +540,17 @@ public class GamePlayActivity extends AppCompatActivity {
                         int row = Integer.parseInt(stringRow);
                         int column = Integer.parseInt(stringColumn);
 
-                        youLose2 = playerLose(row, column, direction);
+                        youLose2 = gameBoardData.playerLose(row, column, direction, currentPosition);
                         if ((direction.equals("up") || direction.equals("down")) && youLose2) {
                             direction = "left";
-                            youLose2 = playerLose(row, column, direction);
+                            youLose2 = gameBoardData.playerLose(row, column, direction, currentPosition);
                             if (youLose2) {
                                 direction = "right";
                             }
                             youLose2 = false;
                         } else if ((direction.equals("left") || direction.equals("right")) && youLose2) {
                             direction = "down";
-                            youLose2 = playerLose(row, column, direction);
+                            youLose2 = gameBoardData.playerLose(row, column, direction, currentPosition);
                             if (youLose2) {
                                 direction = "up";
                             }
@@ -545,17 +577,17 @@ public class GamePlayActivity extends AppCompatActivity {
                         int row = Integer.parseInt(stringRow);
                         int column = Integer.parseInt(stringColumn);
 
-                        youLose2 = playerLose(row, column, direction);
+                        youLose2 = gameBoardData.playerLose(row, column, direction, currentPosition);
                         if ((direction.equals("up") || direction.equals("down")) && youLose2) {
                             direction = "left";
-                            youLose2 = playerLose(row, column, direction);
+                            youLose2 = gameBoardData.playerLose(row, column, direction, currentPosition);
                             if (youLose2) {
                                 direction = "right";
                             }
                             youLose2 = false;
                         } else if ((direction.equals("left") || direction.equals("right")) && youLose2) {
                             direction = "down";
-                            youLose2 = playerLose(row, column, direction);
+                            youLose2 = gameBoardData.playerLose(row, column, direction, currentPosition);
                             if (youLose2) {
                                 direction = "up";
                             }
@@ -727,53 +759,10 @@ public class GamePlayActivity extends AppCompatActivity {
 //            displayYouLoseToast();
         }
 
-        public boolean playerLose(int row, int column, String direction) {
-
-            switch (direction) {
-                case "up":
-                    row--;
-                    break;
-                case "down":
-                    row++;
-                    break;
-                case "left":
-                    column--;
-                    break;
-                case "right":
-                    column++;
-                    break;
-            }
-
-
-            try {
-                if (performOperationOnGameBoard(row, column, -9999) != 0)
-                {
-                    return true;
-                }
-
-            } catch (ArrayIndexOutOfBoundsException e) {
-                return true;
-            }
-            return false;
-        }
-
-
-        public synchronized int performOperationOnGameBoard(int row, int column, int value) {
-            synchronized (gameBoard)
-            {
-                if (value == -9999) {
-                    //This is the getter method
-                    return gameBoard[row][column];
-
-                } else {
-                    //This is the setter method
-                    gameBoard[row][column] = value;
-                    return -9999;
-                }
-            }
-
-        }
-
+//        public boolean playerLoseView(int currentPosition, String direction)
+//        {
+//
+//        }
 
 
         public boolean updatePlayerMove(int playerNumber, String direction, int currentSpeed, int latencyTime, boolean youLose, boolean noDraw) {
@@ -791,7 +780,7 @@ public class GamePlayActivity extends AppCompatActivity {
             int column = Integer.parseInt(stringColumn);
 
 
-            performOperationOnGameBoard(row, column, playerCode);
+            gameBoardData.performOperationOnGameBoard(row, column, playerCode);
             //gameBoard[row][column] = playerCode;
 
             // Update the UI appropriately according to the playerDirection.
@@ -823,8 +812,8 @@ public class GamePlayActivity extends AppCompatActivity {
                             // when the speed is 2, the player's head skips a cell in gameBoard.
                             // If there is something in that skipped cell, then the play dies.
                             // This prevents the player from running through walls and other graphicPlayers without dying.
-                            if (performOperationOnGameBoard(row + 1, column, -9999) == 0) {
-                                performOperationOnGameBoard(row + 1, column, 10);
+                            if (gameBoardData.performOperationOnGameBoard(row + 1, column, -9999) == 0) {
+                                gameBoardData.performOperationOnGameBoard(row + 1, column, 10);
                                 //gameBoard[row + 1][column] = 10;
                             } else {
                                 youLose = true;
@@ -858,9 +847,9 @@ public class GamePlayActivity extends AppCompatActivity {
 
                         //secondHalfOfViewID will increase/decrease an additional unit if the speed is 2.
                         if (tempSpeed == 2) {
-                            if (performOperationOnGameBoard(row - 1, column, -9999) == 0) {
-                                gameBoard[row - 1][column] = 10;
-                                performOperationOnGameBoard(row - 1, column, 10);
+                            if (gameBoardData.performOperationOnGameBoard(row - 1, column, -9999) == 0) {
+                                //gameBoard[row - 1][column] = 10;
+                                gameBoardData.performOperationOnGameBoard(row - 1, column, 10);
                             } else {
                                 youLose = true;
                             }
@@ -892,9 +881,9 @@ public class GamePlayActivity extends AppCompatActivity {
 
                         //secondHalfOfViewID will increase/decrease an additional unit if the speed is 2.
                         if (tempSpeed == 2) {
-                            if (performOperationOnGameBoard(row, column + 1, -9999) == 0) {
-                                gameBoard[row][column + 1] = 10;
-                                performOperationOnGameBoard(row, column + 1, 10);
+                            if (gameBoardData.performOperationOnGameBoard(row, column + 1, -9999) == 0) {
+                                //gameBoard[row][column + 1] = 10;
+                                gameBoardData.performOperationOnGameBoard(row, column + 1, 10);
                             } else {
                                 youLose = true;
                             }
@@ -928,9 +917,9 @@ public class GamePlayActivity extends AppCompatActivity {
 
                         //secondHalfOfViewID will increase/decrease an additional unit if the speed is 2.
                         if (tempSpeed == 2) {
-                            if (performOperationOnGameBoard(row, column - 1, -9999) == 0) {
-                                gameBoard[row][column - 1] = 10;
-                                performOperationOnGameBoard(row, column - 1, 10);
+                            if (gameBoardData.performOperationOnGameBoard(row, column - 1, -9999) == 0) {
+                                //gameBoard[row][column - 1] = 10;
+                                gameBoardData.performOperationOnGameBoard(row, column - 1, 10);
                             } else {
                                 youLose = true;
                             }
@@ -969,16 +958,16 @@ public class GamePlayActivity extends AppCompatActivity {
 
             // Check if the player lose or not
 
-            if (youLose || gameBoard[row][column] != 0 || row >= GAME_BOARD_SIZE || column >= GAME_BOARD_SIZE || row < 0 || column < 0) {
+            if (youLose || gameBoardData.performOperationOnGameBoard(row, column, -9999) != 0 || row >= GAME_BOARD_SIZE || column >= GAME_BOARD_SIZE || row < 0 || column < 0) {
                 //System.out.println(youLose);
                 youLose = true;
 
                 if (playerNumber == 0) {
                     displayYouLoseToast();
-                    deletePlayer(playerCode);
+                    //deletePlayer(playerCode);
                 } else {
                     if (!noDraw) {
-                        deletePlayer(playerCode);
+                        // deletePlayer(playerCode);
                     }
 
                 }
