@@ -18,5 +18,4 @@ public class Player {
     @ColumnInfo(name = "is_local")
     public boolean isLocal;
 
-
 }
