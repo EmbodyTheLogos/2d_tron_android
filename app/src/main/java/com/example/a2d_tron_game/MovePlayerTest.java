@@ -809,16 +809,16 @@ class MovePlayerTest {
 
             long endTime = System.currentTimeMillis();
             latencyTime += (endTime - startTime);
-//            try {
-//                if (latencyTime < 50) {
-//                    Thread.sleep(50 - latencyTime);
-//                }
-////                Thread.sleep(100);
-//
-//
-//            } catch (InterruptedException e) {
-//
-//            }
+            try {
+                if (latencyTime < 100) {
+                    Thread.sleep(100 - latencyTime);
+                }
+//                Thread.sleep(100);
+
+
+            } catch (InterruptedException e) {
+
+            }
             graphicPlayers.get(playerNumber).lastTailViewID = graphicPlayers.get(playerNumber).secondHalfOfHalfViewID; //We want to know where the second half of the head was so we can update the tail appropriately next time.
             graphicPlayers.get(playerNumber).previousFirstHalfOfHeadViewID = graphicPlayers.get(playerNumber).firstHalfOfHeadViewID; // We need this to take care of when the speed is 2.
             graphicPlayers.get(playerNumber).previousPlayerDirection = graphicPlayers.get(playerNumber).playerDirection;
@@ -1066,6 +1066,8 @@ class MovePlayerTest {
                             youLose = true;
                             break;
                         }
+                        updatePlayerMove(0, playerDirection, speed, 0, youLose, false);
+
                     } else {
                         // This is an online game
 
@@ -1088,37 +1090,40 @@ class MovePlayerTest {
                         onlineServerMessageJSONArray = new JSONArray(onlineServerMessage);
                         System.out.println(onlineServerMessageJSONArray);
 
-                    }
 
-
-                    //TODO: receive move from all graphicPlayers to game server
-                    for (int i = 0; i < onlineServerMessageJSONArray.length(); i++)
-                    {
-                        JSONObject playerMove = onlineServerMessageJSONArray.getJSONObject(i);
-                        if (!playerMove.equals("None"))
+                        //TODO: receive move from all graphicPlayers to game server
+                        for (int i = 0; i < onlineServerMessageJSONArray.length(); i++)
                         {
-                            String playerDirection = playerMove.getString("direction");
-                            JSONArray playerPositionStatus = playerMove.getJSONArray("position");
-                            int playerSpeed = 0;
-                            for (int k = 0; k < playerPositionStatus.length(); k++)
+                            JSONObject playerMove = onlineServerMessageJSONArray.getJSONObject(i);
+                            if (!playerMove.equals("None"))
                             {
-                                if (playerPositionStatus.getString(k).equals("ok"))
+                                String playerDirection = playerMove.getString("direction");
+                                JSONArray playerPositionStatus = playerMove.getJSONArray("position");
+                                int playerSpeed = 0;
+                                for (int k = 0; k < playerPositionStatus.length(); k++)
                                 {
-                                    playerSpeed++;
+                                    if (playerPositionStatus.getString(k).equals("ok"))
+                                    {
+                                        playerSpeed++;
+                                    }
+                                    else
+                                    {
+                                        break;
+                                    }
                                 }
-                                else
+                                if (playerSpeed > 0)
                                 {
-                                    break;
+                                    updatePlayerMove(i, playerDirection, playerSpeed, 0, youLose, false);
+
                                 }
-                            }
-                            if (playerSpeed > 0)
-                            {
-                                updatePlayerMove(i, playerDirection, playerSpeed, 0, youLose, false);
 
                             }
-
                         }
+
                     }
+
+
+
 
 
                 } catch (JSONException | IOException e) {
@@ -1138,9 +1143,6 @@ class MovePlayerTest {
 //                    }
 //                    break;
 //                }
-
-
-
 
             } // end while
             numOfAlivePlayer--;
